@@ -1,0 +1,102 @@
+name: Deploy Model Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'models/*.pkl'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  packages: write 
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install pytest
+        pip install -r dependencies/run_model_requirements.txt || true
+    
+    - name: Get model filename
+      id: model
+      run: |
+        MODEL_FILE=$(ls -t models/*.pkl | head -1)
+        echo "model_path=$MODEL_FILE" >> $GITHUB_OUTPUT
+        echo "model_name=$(basename $MODEL_FILE)" >> $GITHUB_OUTPUT
+    
+    - name: Convert repository name to lowercase
+      id: repo
+      run: |
+        REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+        echo "repo_lower=$REPO_LOWER" >> $GITHUB_OUTPUT
+    
+    - name: Set image name
+      id: image
+      run: |
+        FULL_IMAGE_NAME="${{ steps.repo.outputs.repo_lower }}/fraud-detection-api"
+        echo "full_name=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: List files for debug
+      run: |
+        ls -la dependencies/
+        cat dependencies/service_requirements.txt || echo "File not found"
+
+    - name: Build Docker image
+      run: |
+        docker build -t ghcr.io/${{ steps.image.outputs.full_name }}:latest \
+          -t ghcr.io/${{ steps.image.outputs.full_name }}:${{ github.sha }} \
+          -f docker/Dockerfile .
+    
+    - name: Push Docker image
+      run: |
+        docker push ghcr.io/${{ steps.image.outputs.full_name }}:latest
+        docker push ghcr.io/${{ steps.image.outputs.full_name }}:${{ github.sha }}
+    
+    - name: Run container locally
+      run: |
+        docker run -d --name fraud-api -p 8000:8000 \
+          -v $(pwd)/models:/models \
+          ghcr.io/${{ steps.image.outputs.full_name }}:latest
+        sleep 5
+
+    - name: Install dependencies
+      run: |
+        pip install pytest fastapi uvicorn httpx requests
+        pip install -r dependencies/service_requirements.txt || true
+    
+    - name: Test API service
+      run: |
+        pytest tests/test_predict_service.py -v
+    
+    - name: Get container metrics
+      run: |
+        echo "=== Container Metrics ==="
+        docker stats fraud-api --no-stream
+        docker top fraud-api
+        docker inspect fraud-api | jq '.[0].State'
+    
+    - name: Stop container
+      run: |
+        docker stop fraud-api
+        docker rm fraud-api

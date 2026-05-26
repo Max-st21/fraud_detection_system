@@ -1,0 +1,42 @@
+name: Data Processing Pipeline
+
+on:
+  workflow_dispatch:  # Ручной запуск
+  push:
+    branches:
+      - main
+    paths:
+      - 'data/raw/*.csv'
+
+jobs:
+  process-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install pandas numpy boto3 pytest
+        pip install -r dependencies/etl_requirements.txt || true
+    
+    - name: Run ETL pipeline
+      run: |
+        python -c "from src.etl.etl import main; main()"
+    
+    - name: Run data validation tests
+      run: |
+        pytest tests/test_data_validate.py -v
+    
+    - name: Upload processed data as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: processed-data
+        path: data/processed/
+        retention-days: 30
