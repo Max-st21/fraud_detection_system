@@ -7,6 +7,7 @@ from src.model_scripts.load_model import load_model, load_model_from_mlflow
 import yaml
 import argparse
 import json
+import lightgbm as lgb
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,28 +19,51 @@ logger = logging.getLogger(__name__)
 # ==========================================
 def load_config(config_path: str = "config/data_config.yaml") -> Dict:
     """Загружает конфигурацию из YAML файла"""
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    logger.info(f"Config loaded from {config_path}")
-    return config
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        logger.info(f"Config loaded from {config_path}")
+        return config
+    except FileNotFoundError:
+        logger.warning(f"Config file {config_path} not found, using default config")
+        # Возвращаем дефолтную конфигурацию
+        return {
+            'features': {
+                'feature_cols': [
+                    'transaction_amount', 'login_attempts', 'device_risk_score',
+                    'transfer_frequency', 'anomaly_score', 'account_age_days',
+                    'transaction_time_hour', 'failed_transactions_last_30d',
+                    'avg_monthly_balance', 'daily_transaction_count', 'geo_distance_km',
+                    'session_duration_minutes', 'transaction_velocity_score',
+                    'payment_channel', 'authentication_type', 'card_present_flag',
+                    'international_transaction_flag', 'suspicious_ip_flag'
+                ]
+            },
+            'categorical_features': ['payment_channel', 'authentication_type']
+        }
 
 # ==========================================
 # ПОДГОТОВКА ВХОДНЫХ ДАННЫХ
 # ==========================================
 def prepare_input_data(
     data: Union[pd.DataFrame, str, Dict, List],
-    feature_cols: List[str] = None
+    feature_cols: List[str] = None,
+    categorical_features: List[str] = None
     ) -> pd.DataFrame:
     """
     Подготавливает входные данные для предсказания 
     Args:
         data: входные данные (DataFrame, путь к файлу, словарь, список)
         feature_cols: список колонок для предсказания
+        categorical_features: список категориальных колонок
     """
     config = load_config()
     
     if feature_cols is None:
         feature_cols = config['features']['feature_cols']
+    
+    if categorical_features is None:
+        categorical_features = config.get('categorical_features', [])
     
     # Преобразование различных форматов в DataFrame
     if isinstance(data, pd.DataFrame):
@@ -70,14 +94,23 @@ def prepare_input_data(
         for col in missing_cols:
             X[col] = np.nan
     
-    # Оставляем только нужные колонки
-    available_cols = [col for col in feature_cols if col in X.columns]
-    X = X[available_cols]
+    # Оставляем только нужные колонки в правильном порядке
+    X = X[feature_cols]
     
     # Преобразуем категориальные колонки
-    categorical_cols = X.select_dtypes(include=['object']).columns.tolist()
-    for col in categorical_cols:
-        X[col] = X[col].astype('category')
+    for col in categorical_features:
+        if col in X.columns:
+            X[col] = X[col].fillna('missing')
+            X[col] = X[col].astype(str).astype('category')
+            logger.debug(f"Converted {col} to categorical")
+    
+    # Числовые колонки: заполняем пропуски
+    numeric_cols = [col for col in feature_cols if col not in categorical_features]
+    for col in numeric_cols:
+        if col in X.columns and X[col].dtype == 'object':
+            X[col] = pd.to_numeric(X[col], errors='coerce')
+        if col in X.columns:
+            X[col] = X[col].fillna(0)
     
     logger.info(f"Prepared {len(X)} rows for prediction")
     return X
@@ -89,13 +122,12 @@ def predict(
     model: Any,
     data: Union[pd.DataFrame, str, Dict, List],
     threshold: float = 0.5
-    ) -> pd.Series:
+    ) -> Dict:
     """
     Делает предсказание на основе загруженной модели
     Args:
         model: загруженная модель
         data: входные данные
-        return_proba: если True, возвращает вероятности, иначе бинарные классы
         threshold: порог для бинарной классификации
     """
     logger.info("Starting prediction...")
@@ -103,8 +135,27 @@ def predict(
     # Подготовка данных
     X = prepare_input_data(data)
     
-    # Предсказание
-    proba = model.predict_proba(X)[:, 1]
+    if len(X) == 0:
+        raise ValueError("No data to predict")
+    
+    # Предсказание в зависимости от типа модели
+    if isinstance(model, lgb.Booster):
+        logger.info("Using LightGBM Booster for prediction")
+        proba = model.predict(X)
+        # Если proba 2D, берем вероятность второго класса
+        if len(proba.shape) > 1:
+            proba = proba[:, 1]
+    elif hasattr(model, 'predict_proba'):
+        logger.info("Using predict_proba method")
+        proba = model.predict_proba(X)[:, 1]
+    elif hasattr(model, 'predict'):
+        logger.info("Using predict method")
+        proba = model.predict(X)
+        if hasattr(proba, 'shape') and len(proba.shape) > 1:
+            proba = proba[:, 1] if proba.shape[1] > 1 else proba.flatten()
+    else:
+        raise ValueError("Model does not have predict_proba or predict method")
+    
     predictions = (proba >= threshold).astype(int)
     
     # Формирование отчета
@@ -174,7 +225,7 @@ def main():
     print("\n" + "="*50)
     print("PREDICTION SUMMARY")
     print("="*50)
-    print(f"{result}")
+    print(json.dumps(result['statistics'], indent=2))
 
 
 if __name__ == "__main__":

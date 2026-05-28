@@ -1,5 +1,4 @@
-# Dockerfile
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -18,10 +17,10 @@ COPY src/predict_service/ ./src/predict_service/
 COPY src/model_scripts/load_model.py src/model_scripts/predict.py ./src/model_scripts/
 COPY config/ ./config/
 COPY models/ ./models/
+COPY tests/ ./tests/
 
 # Переменные окружения
 ENV PYTHONPATH=/app
-ENV MODEL_PATH=/app/models
 
 # Открываем порт
 EXPOSE 8000

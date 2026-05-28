@@ -26,11 +26,6 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install dependencies
-      run: |
-        pip install pytest
-        pip install -r dependencies/run_model_requirements.txt || true
-    
     - name: Get model filename
       id: model
       run: |
@@ -57,37 +52,46 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: List files for debug
-      run: |
-        ls -la dependencies/
-        cat dependencies/service_requirements.txt || echo "File not found"
-
     - name: Build Docker image
       run: |
-        docker build -t ghcr.io/${{ steps.image.outputs.full_name }}:latest \
-          -t ghcr.io/${{ steps.image.outputs.full_name }}:${{ github.sha }} \
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        docker build --no-cache -t ghcr.io/${{ steps.image.outputs.full_name }}:latest \
+          -t ghcr.io/${{ steps.image.outputs.full_name }}:$SHORT_SHA \
           -f docker/Dockerfile .
     
     - name: Push Docker image
       run: |
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
         docker push ghcr.io/${{ steps.image.outputs.full_name }}:latest
-        docker push ghcr.io/${{ steps.image.outputs.full_name }}:${{ github.sha }}
+        docker push ghcr.io/${{ steps.image.outputs.full_name }}:$SHORT_SHA
     
-    - name: Run container locally
+    - name: Run container
       run: |
         docker run -d --name fraud-api -p 8000:8000 \
-          -v $(pwd)/models:/models \
           ghcr.io/${{ steps.image.outputs.full_name }}:latest
         sleep 5
+        echo "=== Container logs ==="
+        docker logs fraud-api || true
+        echo "=== Container status ==="
+        docker ps -a
 
-    - name: Install dependencies
+    - name: Test API service (inside container)
       run: |
-        pip install pytest fastapi uvicorn httpx requests
-        pip install -r dependencies/service_requirements.txt || true
-    
-    - name: Test API service
+        if docker ps | grep -q fraud-api; then
+          docker exec fraud-api python -m pytest tests/test_service_module.py -v --tb=short
+        else
+          echo "Container is not running"
+          docker logs fraud-api
+          exit 1
+        fi
+
+    - name: Run tests from outside container
       run: |
-        pytest tests/test_predict_service.py -v
+        pip install -r dependencies/service_requirements.txt  
+        pytest tests/test_service_integration.py -v
+        - name: Run integration tests
+      env:
+        API_URL: "http://localhost:8000"
     
     - name: Get container metrics
       run: |
