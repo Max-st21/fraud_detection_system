@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 
 # pydantic models
@@ -27,6 +27,15 @@ class TransactionData(BaseModel):
 class PredictRequest(BaseModel):
     data: TransactionData
     threshold: Optional[float] = 0.5
+
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Порог классификации")
+    
+    @field_validator('threshold')
+    @classmethod
+    def validate_threshold(cls, v: float) -> float:
+        if not 0.0 <= v <= 1.0:
+            raise ValueError('threshold must be between 0 and 1')
+        return v
 
 
 class StatisticsResponse(BaseModel):

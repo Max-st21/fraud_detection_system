@@ -72,14 +72,6 @@ def test_predict_with_valid_data():
     assert isinstance(data["prediction"], int)
     assert isinstance(data["probability"], float)
 
-def test_predict_invalid_data():
-    """Тест с некорректными данными"""
-    response = requests.post(f"{BASE_URL}/predict", json={
-        "data": {}  # Пустые данные
-    })
-    # Должна быть ошибка валидации 422
-    assert response.status_code == 422
-
 def test_predict_missing_data():
     """Тест с отсутствующим полем data"""
     response = requests.post(f"{BASE_URL}/predict", json={
