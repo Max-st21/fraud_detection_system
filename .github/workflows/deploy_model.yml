@@ -89,7 +89,7 @@ jobs:
       run: |
         pip install -r dependencies/service_requirements.txt  
         pytest tests/test_service_integration.py -v
-        - name: Run integration tests
+        name: Run integration tests
       env:
         API_URL: "http://localhost:8000"
     
