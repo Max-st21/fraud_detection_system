@@ -1,5 +1,6 @@
+from typing import List, Optional
+
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
 
 
 # pydantic models

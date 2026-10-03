@@ -1,10 +1,11 @@
+import logging
 import pickle
 from pathlib import Path
 from typing import Any, Dict
-import logging
-import yaml
+
 import mlflow
 import mlflow.lightgbm
+import yaml
 
 # Настройка логирования
 logging.basicConfig(

@@ -1,11 +1,13 @@
-from fastapi import FastAPI, HTTPException
+import hashlib
 import logging
 from pathlib import Path
+
 import pandas as pd
+from fastapi import FastAPI, HTTPException
+
 from src.model_scripts.load_model import load_model
 from src.model_scripts.predict import predict
 from src.predict_service.models import HealthResponse, PredictRequest
-import hashlib
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

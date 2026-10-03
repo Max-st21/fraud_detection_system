@@ -1,5 +1,6 @@
-import requests
 import os
+
+import requests
 
 # Базовый URL сервиса (можно переопределить через переменную окружения)
 BASE_URL = os.getenv("API_URL", "http://localhost:8000")

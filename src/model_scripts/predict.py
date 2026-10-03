@@ -1,13 +1,15 @@
-import logging
-import pandas as pd
-import numpy as np
-from typing import Union, List, Dict, Any
-from datetime import datetime
-from src.model_scripts.load_model import load_model, load_model_from_mlflow
-import yaml
 import argparse
 import json
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Union
+
 import lightgbm as lgb
+import numpy as np
+import pandas as pd
+import yaml
+
+from src.model_scripts.load_model import load_model, load_model_from_mlflow
 
 # Настройка логирования
 logging.basicConfig(

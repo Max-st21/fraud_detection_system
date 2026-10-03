@@ -1,7 +1,8 @@
 import sys
 from pathlib import Path
-from fastapi.testclient import TestClient
+
 import numpy as np
+from fastapi.testclient import TestClient
 
 # Добавляем путь к модулям
 sys.path.append(str(Path(__file__).parent.parent))
@@ -64,6 +65,7 @@ def test_predict_with_mock_model(monkeypatch):
     monkeypatch.setattr("src.predict_service.main.model", MockModel())
 
     import importlib
+
     import src.predict_service.main
 
     importlib.reload(src.predict_service.main)

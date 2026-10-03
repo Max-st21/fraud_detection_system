@@ -1,28 +1,21 @@
-import pickle
 import logging
-import optuna
-import pandas as pd
-import numpy as np
+import pickle
 from pathlib import Path
 from typing import Dict, Tuple
 
 import lightgbm as lgb
-from sklearn.model_selection import train_test_split, StratifiedKFold
-from sklearn.metrics import (
-    roc_auc_score,
-    f1_score,
-    accuracy_score,
-    precision_score,
-    recall_score,
-    classification_report,
-    roc_curve,
-    confusion_matrix,
-)
+import matplotlib.pyplot as plt
 import mlflow
 import mlflow.lightgbm
-import yaml
-import matplotlib.pyplot as plt
+import numpy as np
+import optuna
+import pandas as pd
 import seaborn as sns
+import yaml
+from sklearn.metrics import (accuracy_score, classification_report,
+                             confusion_matrix, f1_score, precision_score,
+                             recall_score, roc_auc_score, roc_curve)
+from sklearn.model_selection import StratifiedKFold, train_test_split
 
 # Настройка логирования
 logging.basicConfig(
