@@ -1,9 +1,11 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 
+
 # pydantic models
 class TransactionData(BaseModel):
     """Модель данных транзакции"""
+
     transaction_amount: Optional[float] = None
     login_attempts: Optional[int] = None
     device_risk_score: Optional[float] = None
@@ -28,18 +30,21 @@ class PredictRequest(BaseModel):
     data: TransactionData
     threshold: Optional[float] = 0.5
 
-    threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Порог классификации")
-    
-    @field_validator('threshold')
+    threshold: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Порог классификации"
+    )
+
+    @field_validator("threshold")
     @classmethod
     def validate_threshold(cls, v: float) -> float:
         if not 0.0 <= v <= 1.0:
-            raise ValueError('threshold must be between 0 and 1')
+            raise ValueError("threshold must be between 0 and 1")
         return v
 
 
 class StatisticsResponse(BaseModel):
     """Статистика предсказаний"""
+
     total_rows: int = Field(..., description="Общее количество строк")
     fraud_predictions: int = Field(..., description="Количество предсказанных фродов")
     fraud_rate: float = Field(..., description="Доля фрода", ge=0, le=1)
@@ -49,6 +54,7 @@ class StatisticsResponse(BaseModel):
 
 class PredictResponse(BaseModel):
     """Ответ предсказания (все поля опциональны)"""
+
     predictions: List[int] = Field(None, description="Список предсказанных классов")
     probabilities: List[float] = Field(None, description="Список вероятностей фрода")
     statistics: Optional[StatisticsResponse] = Field(None, description="Статистика")
@@ -56,4 +62,5 @@ class PredictResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Модель ответа health check"""
+
     status: str
