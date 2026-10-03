@@ -11,40 +11,40 @@ on:
 permissions:
   actions: read
   contents: read
-  packages: write 
+  packages: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    
+
     - name: Get model filename
       id: model
       run: |
         MODEL_FILE=$(ls -t models/*.pkl | head -1)
         echo "model_path=$MODEL_FILE" >> $GITHUB_OUTPUT
         echo "model_name=$(basename $MODEL_FILE)" >> $GITHUB_OUTPUT
-    
+
     - name: Convert repository name to lowercase
       id: repo
       run: |
         REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
         echo "repo_lower=$REPO_LOWER" >> $GITHUB_OUTPUT
-    
+
     - name: Set image name
       id: image
       run: |
         FULL_IMAGE_NAME="${{ steps.repo.outputs.repo_lower }}/fraud-detection-api"
         echo "full_name=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
-    
+
     - name: Log in to Container Registry
       uses: docker/login-action@v3
       with:
@@ -58,13 +58,13 @@ jobs:
         docker build --no-cache -t ghcr.io/${{ steps.image.outputs.full_name }}:latest \
           -t ghcr.io/${{ steps.image.outputs.full_name }}:$SHORT_SHA \
           -f docker/Dockerfile .
-    
+
     - name: Push Docker image
       run: |
         SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
         docker push ghcr.io/${{ steps.image.outputs.full_name }}:latest
         docker push ghcr.io/${{ steps.image.outputs.full_name }}:$SHORT_SHA
-    
+
     - name: Run container
       run: |
         docker run -d --name fraud-api -p 8000:8000 \
@@ -87,18 +87,18 @@ jobs:
 
     - name: Run tests from outside container
       run: |
-        pip install -r dependencies/service_requirements.txt  
+        pip install -r dependencies/service_requirements.txt
         pytest tests/test_service_integration.py -v
       env:
         API_URL: "http://localhost:8000"
-    
+
     - name: Get container metrics
       run: |
         echo "=== Container Metrics ==="
         docker stats fraud-api --no-stream
         docker top fraud-api
         docker inspect fraud-api | jq '.[0].State'
-    
+
     - name: Stop container
       run: |
         docker stop fraud-api
