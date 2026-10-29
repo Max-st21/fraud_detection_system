@@ -1,0 +1,3 @@
+Первый запуск (в Bash / MINGW64):
+chmod +x scripts/setup_env.sh scripts/setup_linters.sh scripts/setup_all.sh
+bash scripts/setup_all.sh
